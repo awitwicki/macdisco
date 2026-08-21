@@ -9,8 +9,9 @@ import (
 	"golang.org/x/term"
 )
 
-// version is overridden at release time via -ldflags "-X main.version=…".
-var version = "dev"
+// version is the single source of truth for releases: when a push to main
+// carries a new value here, CI tags v<version> and publishes binaries.
+var version = "1.0.1"
 
 func main() {
 	var (

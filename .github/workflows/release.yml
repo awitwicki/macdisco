@@ -2,28 +2,63 @@ name: release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Read version from code
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"$/\1/p' main.go)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "dev" ]; then
+            echo "could not read a release version from main.go" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release tag already exists
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping release."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-go@v5
+        if: steps.tag.outputs.exists == 'false'
         with:
           go-version: 'stable'
+
       - name: Build binaries
+        if: steps.tag.outputs.exists == 'false'
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
           mkdir -p dist
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o macdisco .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o macdisco .
           tar -czf dist/macdisco-darwin-arm64.tar.gz macdisco
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o macdisco .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o macdisco .
           tar -czf dist/macdisco-darwin-x86_64.tar.gz macdisco
-      - name: Create GitHub release
+
+      - name: Create tag and release
+        if: steps.tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" dist/* --generate-notes
