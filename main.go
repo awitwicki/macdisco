@@ -11,7 +11,7 @@ import (
 
 // version is the single source of truth for releases: when a push to main
 // carries a new value here, CI tags v<version> and publishes binaries.
-var version = "1.0.1"
+var version = "1.0.2"
 
 func main() {
 	var (

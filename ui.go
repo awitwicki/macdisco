@@ -76,7 +76,7 @@ func (tc *tableContent) GetCell(row, col int) *tview.TableCell {
 		}
 		return c
 	}
-	if row-1 >= len(ui.rows) {
+	if row < 1 || row-1 >= len(ui.rows) {
 		return tview.NewTableCell("")
 	}
 	n := ui.rows[row-1]
